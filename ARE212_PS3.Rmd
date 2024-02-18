@@ -1,0 +1,245 @@
+---
+title: "ARE212_PS3"
+author: "Student: Karla Neri"
+date: "`r Sys.Date()`"
+output: pdf_document
+header-includes:
+  - \usepackage[T1]{fontenc}
+  - \usepackage{textcomp}
+  - \usepackage{lmodern}
+  - \usepackage{underscore}
+  
+  #tinytex::install_tinytex()
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list= ls()) 
+options(scipen = 999)
+```  
+
+## Install packages
+```{r}
+### Define path/working directory and date 
+path<-'C:/Users/52554/Documents/MPP-UCBerkeley/Econometris/ProblemSets/ProblemSet3_ARE212/'
+knitr::opts_chunk$set(setwd = path) 
+date <- Sys.Date()
+print(date)
+
+### Function to install packages and call libraries
+install <- function(packages){
+  new.packages <- packages[!(packages %in% installed.packages()[, "Package"])]
+  if (length(new.packages)) 
+    install.packages(new.packages, dependencies = TRUE)
+  sapply(packages, require, character.only = TRUE)
+}
+required.packages <- c("readr", "haven", "dplyr", "estimatr", "devtools", 
+                       "rdrobust", "rdd", "ggplot2", "tidyverse", "pacman", "psych", 
+                       "stargazer", "tinytex")
+install(required.packages)
+
+p_load(dplyr, haven, readr, knitr, psych, ggplot2,stats4, stargazer, lmSupport, magrittr, qwraps2, Jmisc )
+
+```
+
+
+## Problem 1. Please check for missing values (as in section 3)
+```{r}
+data_or <- read_dta(paste0(path,"pset3_2024.dta"))
+ls(data_or)
+anyNA(data_or)
+data <- data_or %>% drop_na()
+```
+
+## Problem 2. Get the summary statistics for price: sample mean, standard deviation, minimum and maximum. Construct a 99% confidence interval for the sample average of price
+```{r, message = FALSE, warning = FALSE, results = 'asis'}
+summary_maker <-
+  list("Price" =
+         list("min" = ~ min(data$price),
+              "max" = ~ max(data$price),
+              "mean (sd)" = ~ qwraps2::mean_sd(data$price)))
+whole <- summary_table(data, summary_maker)
+whole
+  
+pbar<-mean(data$price)
+#v_pbar<-pbar*(1-pbar)/nrow(data$price)
+v_pbar<-var(data$price)
+se_pbar<-sqrt(v_pbar)
+
+cn<-qt( ((1-.95)/2), nrow(data$price)-1 ,lower.tail=FALSE)
+bottomCI<-pbar-cn*se_pbar
+topCI<-pbar+cn*se_pbar
+```
+
+## Problem 3. Create two new variables log of price and log of quantity, lprice and lqu. Create the scatter plot of the two variables lqu and lprice. What is the estimated OLS linear model slope associated with this scatter plot? Estimate a regression to answer this.
+```{r, message = FALSE, warning = FALSE, results = 'asis'}
+data <- data %>% 
+  mutate(lprice=log(price)) %>%
+  mutate(lqu=log(qu))
+
+ggplot() +  geom_point( aes( x=data$lprice, y=data$lqu), color = "black", fill = "grey") + theme_minimal() +
+  labs(y="Log of Quantity", x="Log of Price", subtitle="", title="Scatter plot of log of quantity and log of price",  color="Group")
+
+ggplot(data, aes( x=lprice, y=lqu )) +  
+  geom_point() + geom_smooth(formula = y ~ x, se = FALSE, method = "lm") +
+  theme_minimal() + 
+  labs(y="Log of Quantity", x="Log of Price", subtitle="", title="Scatter plot of log of quantity and log of price",  color="Group")
+```
+
+## Problem 4. Regress lqu on fuel, luxury, domestic, and a constant, create the residuals elqu Regress lprice on fuel, luxury, domestic, and a constant, create the residuals elprice Scatter plot the residuals elqu on vertical axis and elprice on horizontal axis. What is the estimated OLS slope associated with this scatter plot? Estimate a regression (no constant) to answer this and explain what theorem underlies the fact that this slope is the marginal effect of lprice on lqu in a regression that also features fuel,luxury, domestic, and a constant.
+```{r, message = FALSE, warning = FALSE, results = 'asis'}
+##Reg 1
+Y<-data$lqu
+X<-cbind(1, data$fuel, data$luxury, data$domestic)
+
+b <- (solve(t(X)%*%X))%*%(t(X)%*%Y)
+print(b)
+P <- (X %*% solve(t(X)%*%X) %*% t(X))
+M <- diag(nrow(P))-P
+e <- M %*% Y 
+elqu <- M %*% Y 
+# SSR <- t(e) %*% e
+# SST <- t(Y)%*%Y
+# SSE <- t(b) %*% t(X)  %*% X  %*% b
+# R2<-1-(SSR/SST)
+# reg <- lm(Y~X-1,)
+# summary(reg)
+
+
+##Reg 2
+Y<-data$lprice
+X<-cbind(1, data$fuel, data$luxury, data$domestic)
+
+b <- (solve(t(X)%*%X))%*%(t(X)%*%Y)
+print(b)
+P <- (X %*% solve(t(X)%*%X) %*% t(X))
+M <- diag(nrow(P))-P
+e <- M %*% Y 
+elprice <- M %*% Y 
+reg <- lm(data$lprice ~ data$fuel + data$luxury+ data$domestic)
+summary(reg)
+
+ggplot(data, aes( x=elprice, y=elqu )) +  
+  geom_point() + geom_smooth(formula = y ~ x, se = FALSE, method = "lm") +
+  theme_minimal() + 
+  labs(y="Residuals for log quantity", x="Residuals for log price", subtitle="", title="Scatter plot of log of quantity and log of price",  color="Group")
+
+#Reg 3 
+reg <- lm(elqu~elprice-1,)
+summary(reg)
+```
+
+## Problem 5. Why is the slope estimate in 3 not equal to the one in 4? Theoretically speaking, when would they be equal?
+```{r, message = FALSE, warning = FALSE, results = 'asis'}
+#Omiited Variables, ortogonality 
+```
+
+## Problem 6. Please interpret the OLS slope point estimate size, sign of the slope lprice estimate in 4. What is the pvalue for the estimated lprice coefficient? Use the stat tables for this. 
+```{r, message = FALSE, warning = FALSE, results = 'asis'}
+reg <- lm(elqu~elprice-1,)
+summary(reg)
+##The coef is -3.336 , this means while the t value es |5.841|, significant at 1% level.
+```
+
+## Problem 7. Can you reject that the marginal effect of lprice on lqu is -4 conditional on all else equal (fuel, luxury, domestic, and a constant)? Do five steps in Hypothesis Testing at the 5% significance level against a twosided alternative. Get critical values from the relevant stats table.
+```{r, message = FALSE, warning = FALSE, results = 'asis'}
+reg <- lm(elqu~elprice-1,)
+summary(reg)
+
+#Solve with Matrices
+Y<-elqu
+X<-elprice
+b <- (solve(t(X)%*%X))%*%(t(X)%*%Y)
+print(b)
+P <- (X %*% solve(t(X)%*%X) %*% t(X))
+M <- diag(nrow(P))-P
+e <- M %*% Y  #e<-Y-X%*%b
+df<-nrow(Y)-1
+s2<-as.numeric(t(e)%*%e)/df
+
+vb<-s2*solve(t(X)%*%X) ##variance
+vb
+seb<-sqrt(diag(vb))
+##The coef is -3.336 , this means while the t value es |5.841|, significant at 1% level.
+
+seb_elqu<- sqrt(vb[1,1])
+lprice_test <- -4
+tn <- ( b[1,1] - lprice_test )/seb_elqu
+tn 
+# Tn is low, so we fail to reject that b=-4
+
+```
+
+## Problem 8. Estimate the sample data correlation of all these variables with each other: lqu, lprice, fuel,, weight, luxury, domestic. Suppose the population model is given by
+$$\text{lqu}_i=\beta_0+\beta_1*\text{lprice}_i+\beta_2*\text{domestic}_i+\beta_3*\text{fuel}_i+\beta_4*\text{luxury}_i+\epsilon_i *$$
+## and we estimate the model 
+$$\text{lqu}_i=\alpha_0+\alpha_1*\text{lprice}_i+\alpha_3*\text{fuel}_i+\alpha_4*\text{luxury}_i+\epsilon_i *$$
+```{r, message = FALSE, warning = FALSE, results = 'asis'}
+data1<-data %>%
+  select(lqu, lprice, fuel, weight, luxury, domestic)
+corr <- cor(data1)
+print(round(corr,3))
+corr[1,6]
+
+#The correlation between lqu and domestic is positive, then the bias for ommited variable would be postive
+```
+## Problem 9. If I told you that research shows that advertising expenditures by car model are positively correlated with lprice and that when including advertising in addition to all factors in (8.b), the estimated weight coefficient does not change at all. What does this imply about the sample correlation between advertising and weight of cars in the sample?
+##This mean both variables are ortogonal.
+
+## Problem 10. Suppose that research showed that the log of advertising is, on average, 5 times the log of price. Construct that advertising variable based on this fact and include it in a regression in addition to lprice and the other covariates in 8.b. Explain what happened.
+## Answer: Multicollinearity (Perfect combination of another variable). The the model do not show coeff for advertising.
+```{r, message = FALSE, warning = FALSE, results = 'asis'}
+data <- data %>% 
+  mutate(advertising=5*log(price)) 
+
+reg <- lm(data$lqu ~ data$lprice + data$fuel + data$luxury)
+summary(reg)
+
+reg <- lm(data$lqu ~ data$lprice + data$fuel + data$luxury + data$advertising)
+summary(reg)
+```
+
+## Problem 11. Please estimate a specification that allows you to test the following. Research shows that luxury goods have a different price elasticity than nonluxury goods. The null hypothesis is that the marginal effect in lprice on log qu does not differ by luxury classification of the car. Write out the regression model that allows you to estimate and perform a hypothesis test for this null. 
+
+```{r, message = FALSE, warning = FALSE, results = 'asis'}
+data <- data %>% 
+  mutate(price_luxury=lprice*luxury) 
+
+reg <- lm(data$lqu ~ data$lprice+data$domestic+data$fuel+data$luxury+data$price_luxury)
+summary(reg)
+# reg <- lm(data$lqu ~ data$lprice+data$domestic+data$fuel+data$luxury)
+# summary(reg)
+```
+##Answer, the interaction coef is signif at the level of 1%
+
+## Problem 12. Regress lqu on a constant, fuel, lprice, luxury, domestic, weight. (eq 12) Test the joint hypothesis that. beta_domestic= 1.5; beta_fuel=60*beta_weight at the 1 percent significance level
+```{r, message = FALSE, warning = FALSE, results = 'asis'}
+
+Y<-data$lqu
+X<-cbind(1, data$fuel, data$lprice, data$luxury,  data$domestic, data$weight)
+
+b <- (solve(t(X)%*%X))%*%(t(X)%*%Y)
+print(b)
+P <- (X %*% solve(t(X)%*%X) %*% t(X))
+M <- diag(nrow(P))-P
+e <- M %*% Y  #e<-Y-X%*%b
+df<-length(Y)-6
+s2<-as.numeric(t(e)%*%e)/df
+vb<-s2*solve(t(X)%*%X) ##variance
+vb
+
+#s2 from above estimate of sigma squared
+# const - fuel - lprice - luxury - domestic - weight
+R_1=c(0,   1 ,     0 ,      0 ,     0,        60)
+R_2=c(0,   0 ,     0 ,      0 ,     1,        0)
+R<-t(cbind(R_1,R_2))
+q<-c(0,1.5)
+
+VRbq<-s2* R %*% solve(t(X) %*% X) %*% t(R)
+Fw<-t(R %*% b-q) %*% solve(VRbq) %*% (R %*% b-q)
+#divide by 2 , J=2
+Fw<-Fw * 0.5
+Fw
+
+```
